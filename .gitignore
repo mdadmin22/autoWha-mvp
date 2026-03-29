@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.db
+*.db-shm
+*.db-wal
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+.env.local
+.env.production
+
+# General
+.DS_Store
+*.log
+.env

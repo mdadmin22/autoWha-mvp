@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ../backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: sqlite:///./autoWha.db
+      CORS_ORIGINS: http://localhost:3000
+    volumes:
+      # Persiste la base de datos SQLite entre reinicios del contenedor.
+      # Sin este volumen, los datos se perderían al hacer docker compose down.
+      - backend_data:/app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        # NEXT_PUBLIC_API_URL se incrusta en el bundle durante el build.
+        # Cambiar este valor requiere reconstruir la imagen: docker compose up --build
+        # Para desarrollo local con Docker, localhost:8000 es correcto porque
+        # el browser del usuario accede al backend a través del puerto publicado en el host.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_data:
