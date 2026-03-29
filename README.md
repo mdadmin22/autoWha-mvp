@@ -11,7 +11,7 @@ Caso inicial: servicios de uñas a domicilio. Adaptable a local fijo.
 
 ### Backend
 
-**Git Bash / Linux / macOS:**
+### **Git Bash / Linux / macOS:**
 ```bash
 cd backend
 python -m venv venv
@@ -21,8 +21,16 @@ cp .env.example .env
 python -m app.seed        # carga datos demo (solo la primera vez)
 uvicorn app.main:app --reload --port 8000
 ```
+### Nota sobre base de datos
 
-**Windows CMD:**
+El proyecto usa SQLite en desarrollo.  
+El archivo de base de datos se crea automáticamente en:
+
+backend/autoWha.db
+
+Si querés reiniciar desde cero, podés borrar ese archivo y volver a ejecutar el seed.
+
+### **Windows CMD:**
 ```cmd
 cd backend
 python -m venv venv
@@ -33,7 +41,7 @@ python -m app.seed
 uvicorn app.main:app --reload --port 8000
 ```
 
-**Windows PowerShell:**
+### **Windows PowerShell:**
 ```powershell
 cd backend
 python -m venv venv
