@@ -1,12 +1,13 @@
 """
 Endpoints de administración.
-MVP: sin autenticación real. Para producción agregar JWT o similar.
+Protegidos con HTTP Basic Auth via ADMIN_PASSWORD (ver .env).
 """
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
+from app.auth import verify_admin
 from app.database import get_db
 from app.models.business import BusinessConfig
 from app.models.service import Service
@@ -17,7 +18,7 @@ from app.schemas.service import ServiceRead, ServiceCreate, ServiceUpdate
 from app.schemas.booking import BookingRead
 from app.schemas.business_hours import BusinessHoursRead, BusinessHoursCreate
 
-router = APIRouter(prefix="/admin")
+router = APIRouter(prefix="/admin", dependencies=[Depends(verify_admin)])
 
 
 # ──────────────────────────────────────────────

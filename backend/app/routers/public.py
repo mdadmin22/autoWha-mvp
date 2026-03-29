@@ -69,6 +69,10 @@ def create_booking(payload: BookingCreate, db: Session = Depends(get_db)):
                 detail="La dirección es obligatoria para servicios a domicilio"
             )
 
+    # Rechazar fechas pasadas
+    if payload.date < date.today():
+        raise HTTPException(status_code=422, detail="No se pueden crear reservas en fechas pasadas")
+
     # Calcular end_time
     start_dt = datetime.combine(payload.date, payload.start_time)
     end_dt = start_dt + timedelta(minutes=service.duration_minutes)

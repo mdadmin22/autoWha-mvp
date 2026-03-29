@@ -9,6 +9,14 @@ Caso inicial: servicios de uñas a domicilio. Adaptable a local fijo.
 
 > Probado en Windows 10/11 con Git Bash, CMD y PowerShell.
 
+cd backend
+venv\Scripts\activate
+uvicorn app.main:app --reload --port 8000
+
+cd frontend
+npm run dev
+
+
 ### Backend
 
 ### **Git Bash / Linux / macOS:**

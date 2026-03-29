@@ -1,33 +1,115 @@
 "use client";
 
-/**
- * Panel de administración básico.
- * MVP: sin autenticación real. Agregar auth en versión siguiente.
- */
 import { useEffect, useState } from "react";
 import {
+  setAdminPassword,
+  clearAdminPassword,
+  hasAdminPassword,
   adminGetBookings,
   adminCancelBooking,
   adminGetServices,
   adminCreateService,
   adminUpdateService,
   adminUpdateConfig,
+  adminGetBusinessHours,
+  adminUpdateBusinessHours,
   getBusinessConfig,
 } from "@/lib/api";
-import type { BookingRead, Service, BusinessConfig } from "@/types";
+import type { BookingRead, Service, BusinessConfig, BusinessHours } from "@/types";
 
-type Tab = "bookings" | "services" | "config";
+type Tab = "bookings" | "services" | "config" | "hours";
+
+const DAY_NAMES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+// ── Auth gate ─────────────────────────────────────────────────────────────────
+
+function LoginForm({ onSuccess }: { onSuccess: () => void }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setAdminPassword(password);
+    try {
+      await adminGetBookings();
+      onSuccess();
+    } catch (err: unknown) {
+      clearAdminPassword();
+      const msg = err instanceof Error ? err.message : "";
+      setError(msg === "UNAUTHORIZED" ? "Contraseña incorrecta" : "Error de conexión");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="max-w-sm mx-auto px-4 py-16">
+      <h1 className="text-2xl font-bold text-gray-900 mb-8 text-center">Administración</h1>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 w-full text-sm"
+            placeholder="Ingresá la contraseña"
+            autoFocus
+          />
+        </div>
+        {error && <p className="text-red-500 text-sm">{error}</p>}
+        <button
+          type="submit"
+          disabled={loading || !password}
+          className="w-full bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg"
+        >
+          {loading ? "Verificando..." : "Entrar"}
+        </button>
+      </form>
+    </main>
+  );
+}
+
+// ── Página principal ──────────────────────────────────────────────────────────
 
 export default function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>("bookings");
+
+  useEffect(() => {
+    setIsAuthenticated(hasAdminPassword());
+  }, []);
+
+  function handleUnauthorized() {
+    clearAdminPassword();
+    setIsAuthenticated(false);
+  }
+
+  // SSR safety: no renderizar hasta saber el estado de auth
+  if (isAuthenticated === null) return null;
+
+  if (!isAuthenticated) {
+    return <LoginForm onSuccess={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <main className="max-w-3xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Administración</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Administración</h1>
+        <button
+          onClick={handleUnauthorized}
+          className="text-sm text-gray-400 hover:text-gray-600"
+        >
+          Salir
+        </button>
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-gray-200">
-        {(["bookings", "services", "config"] as Tab[]).map((t) => (
+        {(["bookings", "services", "config", "hours"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -37,21 +119,28 @@ export default function AdminPage() {
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {t === "bookings" ? "Reservas" : t === "services" ? "Servicios" : "Configuración"}
+            {t === "bookings"
+              ? "Reservas"
+              : t === "services"
+              ? "Servicios"
+              : t === "config"
+              ? "Configuración"
+              : "Horarios"}
           </button>
         ))}
       </div>
 
-      {tab === "bookings" && <BookingsTab />}
-      {tab === "services" && <ServicesTab />}
-      {tab === "config" && <ConfigTab />}
+      {tab === "bookings" && <BookingsTab onUnauthorized={handleUnauthorized} />}
+      {tab === "services" && <ServicesTab onUnauthorized={handleUnauthorized} />}
+      {tab === "config" && <ConfigTab onUnauthorized={handleUnauthorized} />}
+      {tab === "hours" && <HoursTab onUnauthorized={handleUnauthorized} />}
     </main>
   );
 }
 
 // ── Tab: Reservas ─────────────────────────────────────────────────────────────
 
-function BookingsTab() {
+function BookingsTab({ onUnauthorized }: { onUnauthorized: () => void }) {
   const [bookings, setBookings] = useState<BookingRead[]>([]);
   const [dateFilter, setDateFilter] = useState("");
   const [loading, setLoading] = useState(false);
@@ -60,6 +149,7 @@ function BookingsTab() {
     setLoading(true);
     adminGetBookings(dateFilter || undefined)
       .then(setBookings)
+      .catch((e: Error) => { if (e.message === "UNAUTHORIZED") onUnauthorized(); })
       .finally(() => setLoading(false));
   }
 
@@ -67,8 +157,12 @@ function BookingsTab() {
 
   async function handleCancel(id: number) {
     if (!confirm("¿Cancelar esta reserva?")) return;
-    await adminCancelBooking(id);
-    load();
+    try {
+      await adminCancelBooking(id);
+      load();
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === "UNAUTHORIZED") onUnauthorized();
+    }
   }
 
   function formatTime(t: string) { return t.slice(0, 5); }
@@ -148,14 +242,16 @@ function BookingsTab() {
 
 // ── Tab: Servicios ────────────────────────────────────────────────────────────
 
-function ServicesTab() {
+function ServicesTab({ onUnauthorized }: { onUnauthorized: () => void }) {
   const [services, setServices] = useState<Service[]>([]);
   const [editing, setEditing] = useState<Service | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: "", duration_minutes: 60, price: "", is_active: true });
 
   useEffect(() => {
-    adminGetServices().then(setServices);
+    adminGetServices()
+      .then(setServices)
+      .catch((e: Error) => { if (e.message === "UNAUTHORIZED") onUnauthorized(); });
   }, []);
 
   function openCreate() {
@@ -182,10 +278,14 @@ function ServicesTab() {
       price: form.price ? parseFloat(form.price) : null,
       is_active: form.is_active,
     };
-    if (editing) {
-      await adminUpdateService(editing.id, data);
-    } else {
-      await adminCreateService(data);
+    try {
+      if (editing) {
+        await adminUpdateService(editing.id, data);
+      } else {
+        await adminCreateService(data);
+      }
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === "UNAUTHORIZED") { onUnauthorized(); return; }
     }
     setEditing(null);
     setCreating(false);
@@ -268,7 +368,7 @@ function ServicesTab() {
 
 // ── Tab: Configuración ────────────────────────────────────────────────────────
 
-function ConfigTab() {
+function ConfigTab({ onUnauthorized }: { onUnauthorized: () => void }) {
   const [config, setConfig] = useState<BusinessConfig | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -279,9 +379,13 @@ function ConfigTab() {
   async function handleSave() {
     if (!config) return;
     const { id, ...data } = config;
-    await adminUpdateConfig(data);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    try {
+      await adminUpdateConfig(data);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === "UNAUTHORIZED") onUnauthorized();
+    }
   }
 
   if (!config) return <p className="text-gray-400 text-sm">Cargando...</p>;
@@ -335,6 +439,90 @@ function ConfigTab() {
     </div>
   );
 }
+
+// ── Tab: Horarios ─────────────────────────────────────────────────────────────
+
+function HoursTab({ onUnauthorized }: { onUnauthorized: () => void }) {
+  const [hours, setHours] = useState<BusinessHours[]>([]);
+  const [saving, setSaving] = useState<number | null>(null);
+
+  useEffect(() => {
+    adminGetBusinessHours()
+      .then(setHours)
+      .catch((e: Error) => { if (e.message === "UNAUTHORIZED") onUnauthorized(); });
+  }, []);
+
+  function toTimeInput(t: string) { return t.slice(0, 5); }    // "HH:MM:SS" → "HH:MM"
+  function fromTimeInput(t: string) { return `${t}:00`; }      // "HH:MM" → "HH:MM:00"
+
+  function updateLocal(id: number, field: keyof BusinessHours, value: string | boolean) {
+    setHours((prev) => prev.map((h) => (h.id === id ? { ...h, [field]: value } : h)));
+  }
+
+  async function handleSave(h: BusinessHours) {
+    setSaving(h.id);
+    try {
+      await adminUpdateBusinessHours(h.id, {
+        day_of_week: h.day_of_week,
+        start_time: h.start_time,
+        end_time: h.end_time,
+        is_active: h.is_active,
+      });
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === "UNAUTHORIZED") onUnauthorized();
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  if (hours.length === 0) return <p className="text-gray-400 text-sm">Cargando...</p>;
+
+  return (
+    <div className="space-y-3">
+      {hours.map((h) => (
+        <div key={h.id} className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <span className="w-24 font-medium text-gray-800 text-sm">
+              {DAY_NAMES[h.day_of_week] ?? `Día ${h.day_of_week}`}
+            </span>
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={h.is_active}
+                onChange={(e) => updateLocal(h.id, "is_active", e.target.checked)}
+              />
+              Activo
+            </label>
+            <input
+              type="time"
+              value={toTimeInput(h.start_time)}
+              disabled={!h.is_active}
+              onChange={(e) => updateLocal(h.id, "start_time", fromTimeInput(e.target.value))}
+              className="border border-gray-300 rounded-lg px-2 py-1 text-sm disabled:opacity-40"
+            />
+            <span className="text-gray-400 text-sm">–</span>
+            <input
+              type="time"
+              value={toTimeInput(h.end_time)}
+              disabled={!h.is_active}
+              onChange={(e) => updateLocal(h.id, "end_time", fromTimeInput(e.target.value))}
+              className="border border-gray-300 rounded-lg px-2 py-1 text-sm disabled:opacity-40"
+            />
+            <button
+              onClick={() => handleSave(h)}
+              disabled={saving === h.id}
+              className="ml-auto text-sm bg-rose-500 text-white px-3 py-1 rounded-lg hover:bg-rose-600 disabled:opacity-50"
+            >
+              {saving === h.id ? "Guardando..." : "Guardar"}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

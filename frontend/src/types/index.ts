@@ -41,6 +41,15 @@ export interface BookingCreate {
   notes?: string;
 }
 
+export interface BusinessHours {
+  id: number;
+  day_of_week: number;
+  day_name: string;
+  start_time: string; // "HH:MM:SS"
+  end_time: string;   // "HH:MM:SS"
+  is_active: boolean;
+}
+
 export interface BookingRead {
   id: number;
   service: Service;

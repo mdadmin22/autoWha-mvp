@@ -24,6 +24,10 @@ def get_available_slots(
     """
     Retorna la lista de horarios disponibles para un servicio en una fecha.
     """
+    # Rechazar fechas pasadas
+    if target_date < date.today():
+        return []
+
     # --- 1. Cargar datos base ---
     service = db.query(Service).filter(Service.id == service_id, Service.is_active == True).first()
     if not service:
