@@ -53,6 +53,7 @@ export interface BusinessHours {
 export interface BookingRead {
   id: number;
   booking_code: string;
+  management_token: string;
   service: Service;
   date: string;
   start_time: string;

@@ -13,12 +13,20 @@ def _gen_booking_code() -> str:
     return f"BWH-{suffix}"
 
 
+def _gen_management_token() -> str:
+    """Genera un token opaco para links de gestión de reserva (cancelar/reprogramar).
+    Usa secrets.token_urlsafe(32) → 43 chars URL-safe, criptográficamente seguros.
+    """
+    return secrets.token_urlsafe(32)
+
+
 class Booking(Base):
     """Reserva de un turno."""
     __tablename__ = "bookings"
 
     id = Column(Integer, primary_key=True, index=True)
     booking_code = Column(String(20), unique=True, nullable=False, default=_gen_booking_code)
+    management_token = Column(String(64), unique=True, nullable=False, default=_gen_management_token)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
 
     date = Column(Date, nullable=False)

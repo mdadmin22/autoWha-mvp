@@ -24,6 +24,7 @@ class BookingCreate(BaseModel):
 class BookingRead(BaseModel):
     id: int
     booking_code: str
+    management_token: str
     service_id: int
     service: ServiceRead
     date: date
