@@ -1,7 +1,16 @@
 from sqlalchemy import Column, Integer, String, Text, Date, Time, DateTime, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from datetime import datetime
+import secrets
+import string
 from app.database import Base
+
+
+def _gen_booking_code() -> str:
+    """Genera un código único de reserva. Formato: BWH-XXXXXX (6 chars alfanuméricos)."""
+    alphabet = string.ascii_uppercase + string.digits
+    suffix = "".join(secrets.choice(alphabet) for _ in range(6))
+    return f"BWH-{suffix}"
 
 
 class Booking(Base):
@@ -9,6 +18,7 @@ class Booking(Base):
     __tablename__ = "bookings"
 
     id = Column(Integer, primary_key=True, index=True)
+    booking_code = Column(String(20), unique=True, nullable=False, default=_gen_booking_code)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
 
     date = Column(Date, nullable=False)

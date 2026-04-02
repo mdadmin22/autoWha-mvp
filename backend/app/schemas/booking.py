@@ -23,6 +23,7 @@ class BookingCreate(BaseModel):
 
 class BookingRead(BaseModel):
     id: int
+    booking_code: str
     service_id: int
     service: ServiceRead
     date: date

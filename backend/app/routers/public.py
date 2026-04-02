@@ -1,10 +1,13 @@
 """
 Endpoints públicos — accesibles desde el frontend sin autenticación.
 """
+import logging
 from datetime import date, time, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
+
+logger = logging.getLogger(__name__)
 
 from app.database import get_db
 from app.models.business import BusinessConfig
@@ -15,6 +18,7 @@ from app.schemas.service import ServiceRead
 from app.schemas.booking import BookingCreate, BookingRead
 from app.schemas.availability import AvailabilityResponse
 from app.services.availability import get_available_slots
+from app.services.notifications import send_client_confirmation, send_business_alert
 
 router = APIRouter()
 
@@ -100,4 +104,17 @@ def create_booking(payload: BookingCreate, db: Session = Depends(get_db)):
     db.add(booking)
     db.commit()
     db.refresh(booking)
+
+    # Notificaciones post-reserva — nunca bloquean la respuesta al cliente
+    logger.info("[post-reserva] Inicio flujo notificaciones — booking=%s", booking.booking_code)
+    try:
+        send_client_confirmation(booking, config)
+        send_business_alert(booking, config)
+        logger.info("[post-reserva] Flujo notificaciones completado — booking=%s", booking.booking_code)
+    except Exception:
+        logger.exception(
+            "[post-reserva] Error en notificaciones — reserva OK, revisar logs — booking=%s",
+            booking.booking_code,
+        )
+
     return booking
